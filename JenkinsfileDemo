@@ -24,40 +24,30 @@ pipeline{
     stage("Docker build and Push"){
       steps{
         sh "echo Starting CI Steps"
-		sh '''
-		echo "****************************************************************************************************************"
-		echo "Building the ${SERVICE_NAME} app"
-		echo "=================================================================="
+	echo "****************************************************************************************************************"
+	sh '''
 		cd example-voting-app/vote
 		docker build . -t  455392981309.dkr.ecr.us-east-1.amazonaws.com/vote-app:${SERVICE_NAME}${BUILD_NUMBER}
-		echo "Logging into ECR"
-		echo "=================================================================="
 		aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 455392981309.dkr.ecr.us-east-1.amazonaws.com
-		echo "Pushing the new image into ECR"
-		echo "=================================================================="
 		docker push 455392981309.dkr.ecr.us-east-1.amazonaws.com/vote-app:${SERVICE_NAME}${BUILD_NUMBER}
-		echo "Application updated and ready to be deployed"
-		echo "****************************************************************************************************************"
-		'''
+	'''		
+	sh "echo Application updated and ready to be deployed"
+	sh "echo ****************************************************************************************************************"
       }
     }
     stage("Docker Deploy"){
       steps{
         sh "echo Starting CD Steps"
-		sh '''
-		echo "****************************************************************************************************************"
-		echo "Creating new revision for task definition of ${SERVICE_NAME} app"
-		echo "=================================================================="
+	sh "echo ****************************************************************************************************************"
+	sh '''	
 		TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition "$TASK_FAMILY" --region "$AWS_DEFAULT_REGION")
 		NEW_TASK_DEFINTIION=$(echo $TASK_DEFINITION | jq --arg IMAGE "$ECR_IMAGE" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
 		NEW_TASK_INFO=$(aws ecs register-task-definition --region "$AWS_DEFAULT_REGION" --cli-input-json "$NEW_TASK_DEFINTIION")
 		NEW_REVISION=$(echo $NEW_TASK_INFO | jq '.taskDefinition.revision')
-		echo "Update and Deploying the updated service"
-		echo "=================================================================="
 		aws ecs update-service --cluster ${ECS_CLUSTER} --region ${AWS_DEFAULT_REGION} --service ${SERVICE_NAME} --task-definition ${TASK_FAMILY}:${NEW_REVISION}
-		echo "Successfully Deployed"
-		echo "****************************************************************************************************************"
-		'''
+	'''		
+	sh "echo Successfully Deployed"
+	sh echo ****************************************************************************************************************"
       }
       
     }
