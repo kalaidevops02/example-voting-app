@@ -27,9 +27,9 @@ pipeline{
 	echo "****************************************************************************************************************"
 	sh '''
 		cd vote
-		docker build . -t  ${ECR_IMAGE}
+		docker build . -t  455392981309.dkr.ecr.us-east-1.amazonaws.com/vote-app:vote${BUILD_NUMBER}
 		aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 455392981309.dkr.ecr.us-east-1.amazonaws.com
-		docker push ${ECR_IMAGE}
+		docker push 455392981309.dkr.ecr.us-east-1.amazonaws.com/vote-app:vote${BUILD_NUMBER}
 	'''		
 	sh "echo Application updated and ready to be deployed"
 	sh "echo ****************************************************************************************************************"
@@ -41,7 +41,7 @@ pipeline{
 	sh "echo ****************************************************************************************************************"
 	sh '''	
 		TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition "$TASK_FAMILY" --region "$AWS_DEFAULT_REGION")
-		NEW_TASK_DEFINTIION=$(echo $TASK_DEFINITION | jq --arg IMAGE "${ECR_IMAGE}" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
+		NEW_TASK_DEFINTIION=$(echo $TASK_DEFINITION | jq --arg IMAGE "$455392981309.dkr.ecr.us-east-1.amazonaws.com/vote-app:vote${BUILD_NUMBER}" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
 		NEW_TASK_INFO=$(aws ecs register-task-definition --region "$AWS_DEFAULT_REGION" --cli-input-json "$NEW_TASK_DEFINTIION")
 		NEW_REVISION=$(echo $NEW_TASK_INFO | jq '.taskDefinition.revision')
 		aws ecs update-service --cluster ${ECS_CLUSTER} --region ${AWS_DEFAULT_REGION} --service ${SERVICE_NAME} --task-definition ${TASK_FAMILY}:${NEW_REVISION}
