@@ -47,7 +47,7 @@ pipeline{
 		aws ecs update-service --cluster ${ECS_CLUSTER} --region ${AWS_DEFAULT_REGION} --service ${SERVICE_NAME} --task-definition ${TASK_FAMILY}:${NEW_REVISION}
 	'''		
 	sh "echo Successfully Deployed"
-	sh echo ****************************************************************************************************************"
+	sh "echo ****************************************************************************************************************"
       }
       
     }
