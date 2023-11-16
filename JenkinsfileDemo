@@ -1,0 +1,77 @@
+pipeline{
+  agent {label 'worker'}
+
+  environment { 
+    TASK_FAMILY='vote-app-vote'
+	AWS_DEFAULT_REGION='us-east-1'
+	ECR_IMAGE='455392981309.dkr.ecr.us-east-1.amazonaws.com/vote-app:vote${BUILD_NUMBER}'
+	ECS_CLUSTER='vote-app'
+	SERVICE_NAME='vote'
+  }
+
+  options{
+    buildDiscarder(logRotator(numToKeepStr: '15'))
+    disableConcurrentBuilds()
+    retry(3)
+    timeout(time: 1, unit: 'HOURS')
+    timestamps()
+  }
+  parameters {
+    string(name: 'Branch', defaultValue: 'master', description: 'Which branch you want to deploy?')
+    choice(name: 'Environment', choices: ['Dev', 'QA', 'UAT'], description: 'Select the Environment')
+  }
+  stages{
+    stage("Docker build and Push"){
+      steps{
+        sh "echo Starting CI Steps"
+		sh '''
+		echo "****************************************************************************************************************"
+		echo "Building the ${SERVICE_NAME} app"
+		echo "=================================================================="
+		cd example-voting-app/vote
+		docker build . -t  455392981309.dkr.ecr.us-east-1.amazonaws.com/vote-app:${SERVICE_NAME}${BUILD_NUMBER}
+		echo "Logging into ECR"
+		echo "=================================================================="
+		aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 455392981309.dkr.ecr.us-east-1.amazonaws.com
+		echo "Pushing the new image into ECR"
+		echo "=================================================================="
+		docker push 455392981309.dkr.ecr.us-east-1.amazonaws.com/vote-app:${SERVICE_NAME}${BUILD_NUMBER}
+		echo "Application updated and ready to be deployed"
+		echo "****************************************************************************************************************"
+		'''
+      }
+    }
+    stage("Docker Deploy"){
+      steps{
+        sh "echo Starting CD Steps"
+		sh '''
+		echo "****************************************************************************************************************"
+		echo "Creating new revision for task definition of ${SERVICE_NAME} app"
+		echo "=================================================================="
+		TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition "$TASK_FAMILY" --region "$AWS_DEFAULT_REGION")
+		NEW_TASK_DEFINTIION=$(echo $TASK_DEFINITION | jq --arg IMAGE "$ECR_IMAGE" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
+		NEW_TASK_INFO=$(aws ecs register-task-definition --region "$AWS_DEFAULT_REGION" --cli-input-json "$NEW_TASK_DEFINTIION")
+		NEW_REVISION=$(echo $NEW_TASK_INFO | jq '.taskDefinition.revision')
+		echo "Update and Deploying the updated service"
+		echo "=================================================================="
+		aws ecs update-service --cluster ${ECS_CLUSTER} --region ${AWS_DEFAULT_REGION} --service ${SERVICE_NAME} --task-definition ${TASK_FAMILY}:${NEW_REVISION}
+		echo "Successfully Deployed"
+		echo "****************************************************************************************************************"
+		'''
+      }
+      
+    }
+    stage("Verification"){
+      steps{
+        sh "ecs describe service"
+      }
+      
+    }
+  }
+  post { 
+    always { 
+      echo 'I will always say Hello again!'
+      slackSend(channel: "cicd-devops", message: "Pipeline executed. Logs - (<${env.BUILD_URL}| Open Logs>)")
+    }
+  }
+}
